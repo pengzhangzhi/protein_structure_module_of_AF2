@@ -1,5 +1,9 @@
 import torch
 import torch.nn as nn
+from layers import PreModule, IPA, Transition, BackboneUpdate, AngleResNet
+from rigid import Rigid, Rotation
+from coordinate import torsion_angles_to_frames, frames_and_literature_positions_to_atom14_pos
+from utils import dict_multimap
 
 
 class StructureModule(nn.Module):
@@ -95,7 +99,9 @@ class StructureModule(nn.Module):
             rigids = rigids.compose_q_update_vec(self.bb_update(s))
 
             # convert quaternion-format rigid to rotation matrix one.
-            backb_to_global = Rigid()
+            backb_to_global = Rigid(
+                Rotation
+            )
             backb_to_global = backb_to_global.scale_translation(self.trans_scale_factor)
 
             # we use two num to represent the 7 angles, i.e., spi, phi, omega, x1, x2, x3, x4
@@ -108,7 +114,7 @@ class StructureModule(nn.Module):
             # all_frames_to_global contains 8 frames,
             # the backb_to_global and the 7 angles frames.
             # Atoms in these frames are transformed to global coordinates with them.
-            all_frames_to_global = self.torsion_angle_to_global(
+            all_frames_to_global = self.torsion_angles_to_frames(
                 backb_to_global, angles, aatype
             )
 
@@ -136,3 +142,18 @@ class StructureModule(nn.Module):
         outputs["single"] = s
 
         return outputs
+
+    def torsion_angles_to_frames(self,):
+        
+        self._init_residue_constants()
+        return torsion_angles_to_frames()
+        
+        
+    def frames_and_literature_positions_to_atom14_pos(self,):
+        self._init_residue_constants()
+        return frames_and_literature_positions_to_atom14_pos()
+    
+    def _init_residue_constants(self,):
+        """lazy init residue constants for atom coordinates prediction."""
+        ...
+        
