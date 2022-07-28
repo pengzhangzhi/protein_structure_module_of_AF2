@@ -24,7 +24,7 @@ class StructureModule(nn.Module):
         **kwargs,
     ) -> None:
         """
-        The structure module implemented from AF2 supplyment Algorithm 20 Structure module.
+        The structure module, AF2 supplyment Algorithm 20 Structure module.
 
         Notes:
             My implementation is different from AF2's:
