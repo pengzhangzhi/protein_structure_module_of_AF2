@@ -1,8 +1,7 @@
 import click
 def main():
-    ...
+    print("Hello World")
     
 @click.command()
-@click.option('--N', default = 2, help = 'len of amino acid')
-def test(N):
-    print("test structure module...",N)
+def test():
+    print("test structure module...")
