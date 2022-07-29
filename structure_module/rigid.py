@@ -236,8 +236,35 @@ class Rotation(object):
 
 
 class Rigid(object):
-    def __init__(self, *args):
+    """
+    
+    An immutable ADT representing rigid body transformation.
+    Abstract Function:
+        Abstract Functions:
+        AF(rotation, tranlation) = a rigid transmation.
+
+    Reprsentation Invariant:
+        rotation is a Rotation  class object.
+        translation is a tensor [*,3].
+
+    Safety from Representation Exposure:
+        rotation is immutable.
+        Defensive copy is used to prevent modification of the rotation matrix or quaternion.
+
+    
+    """
+    def __init__(self, rots: Rotation = None, trans: torch.Tensor = None) -> None:
+        """ instantialize the rigid transformation with at least one of `rots` or `trans`.
+            If no specified, they will be intialized as identity rotation of translation.
+        Args:
+            rots (Rotation): _description_
+            trans (torch.Tensor): _description_
+        """
         ...
+        
+    def __check_rep(self):
+        self.rots.__check_rep()
+        assert self._trans.shape[-1] == 3, " the translation should be 3D."
 
     @staticmethod
     def identity(
