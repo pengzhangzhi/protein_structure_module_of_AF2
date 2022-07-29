@@ -6,7 +6,6 @@ from torch import Tensor
 from structure_module.primitive import Linear, LayerNorm, ipa_point_weights_init_
 from structure_module.rigid import Rigid
 from structure_module.utils import flatten_final_dims, permute_final_dims
-from einops import rearrange
 
 
 class PreModule(nn.Module):

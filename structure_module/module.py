@@ -1,9 +1,21 @@
 import torch
 import torch.nn as nn
-from layers import PreModule, IPA, Transition, BackboneUpdate, AngleResNet
+from layers import (
+    InvariantPointAttention,
+    PreModule,
+    IPA,
+    Transition,
+    BackboneUpdate,
+    AngleResNet,
+)
 from rigid import Rigid, Rotation
-from coordinate import torsion_angles_to_frames, frames_and_literature_positions_to_atom14_pos
+from coordinate import (
+    torsion_angles_to_frames,
+    frames_and_literature_positions_to_atom14_pos,
+)
 from utils import dict_multimap
+
+from structure_module.primitive import LayerNorm
 
 
 class StructureModule(nn.Module):
@@ -53,13 +65,33 @@ class StructureModule(nn.Module):
 
         ############### Modules ###############
 
-        self.pre_module = PreModule()  # Algorithm 20 Structure module line 1 - 3
-        self.IPA = IPA()  # Algorithm 22 Invariant point attention (IPA)
-        self.ipa_dropout = nn.Dropout()  # Algorithm 20 Structure module line 7
-        self.ipa_layer_norm = nn.LayerNorm()  # Algorithm 20 Structure module line 7
-        self.transition = Transition()  # Algorithm 20 Structure module line 8 - 9
-        self.bb_update = BackboneUpdate()  # Algorithm 20 Structure module line 10
-        self.angle_resnet = AngleResNet()  # Algorithm 20 Structure module line 11
+        self.pre_module = PreModule(
+            c_s,
+            c_z,
+        )
+        self.IPA = InvariantPointAttention(
+            c_s,
+            c_z,
+            c_ipa,
+            no_head_ipa,
+            no_qk_points,
+            no_v_points,
+            inf=inf,
+            eps=epsilon,
+        )  # Algorithm 22 Invariant point attention (IPA)
+        self.ipa_dropout = nn.Dropout(c_s)  # Algorithm 20 Structure module line 7
+        self.ipa_layer_norm = LayerNorm(c_s)  # Algorithm 20 Structure module line 7
+        self.transition = Transition(
+            c_s, no_transition_layers, dropout_rate
+        )  # Algorithm 20 Structure module line 8 - 9
+        self.bb_update = BackboneUpdate(c_s)  # Algorithm 20 Structure module line 10
+        self.angle_resnet = AngleResNet(
+            c_s,
+            c_resnet,
+            no_resnet_blocks,
+            no_angles,
+            eps=epsilon,
+        )  # Algorithm 20 Structure module line 11
 
     def forward(
         self,
@@ -84,8 +116,7 @@ class StructureModule(nn.Module):
                 frames,
 
         """
-        s_init = s
-        s = self.pre_module(s, z, aatype)  # Algorithm 20 Structure module line 1-3
+        s_init, s, z = self.pre_module(s, z)  # Algorithm 20 Structure module line 1-3
 
         rigids = Rigid.identity()
 
@@ -99,9 +130,7 @@ class StructureModule(nn.Module):
             rigids = rigids.compose_q_update_vec(self.bb_update(s))
 
             # convert quaternion-format rigid to rotation matrix one.
-            backb_to_global = Rigid(
-                Rotation
-            )
+            backb_to_global = Rigid(Rotation)
             backb_to_global = backb_to_global.scale_translation(self.trans_scale_factor)
 
             # we use two num to represent the 7 angles, i.e., spi, phi, omega, x1, x2, x3, x4
@@ -134,26 +163,30 @@ class StructureModule(nn.Module):
                 "positions": pred_xyz,
             }
             outputs.append(preds)
-            
-            if iter < self.no_blocks - 1 :
+
+            if iter < self.no_blocks - 1:
                 rigids = rigids.stop_rot_gradient()
-                
-        outputs = dict_multimap(torch.stack, outputs) 
+
+        outputs = dict_multimap(torch.stack, outputs)
         outputs["single"] = s
 
         return outputs
 
-    def torsion_angles_to_frames(self,):
-        
+    def torsion_angles_to_frames(
+        self,
+    ):
+
         self._init_residue_constants()
         return torsion_angles_to_frames()
-        
-        
-    def frames_and_literature_positions_to_atom14_pos(self,):
+
+    def frames_and_literature_positions_to_atom14_pos(
+        self,
+    ):
         self._init_residue_constants()
         return frames_and_literature_positions_to_atom14_pos()
-    
-    def _init_residue_constants(self,):
+
+    def _init_residue_constants(
+        self,
+    ):
         """lazy init residue constants for atom coordinates prediction."""
         ...
-        
