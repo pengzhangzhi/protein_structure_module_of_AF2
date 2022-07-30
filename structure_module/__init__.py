@@ -1,1 +1,1 @@
-from module import StructureModule
+from .module import StructureModule

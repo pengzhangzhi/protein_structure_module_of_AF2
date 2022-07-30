@@ -1,21 +1,20 @@
 import torch
 import torch.nn as nn
-from layers import (
+from .layers import (
     InvariantPointAttention,
     PreModule,
-    IPA,
     Transition,
     BackboneUpdate,
     AngleResNet,
 )
-from rigid import Rigid, Rotation
-from coordinate import (
+from .rigid import Rigid, Rotation
+from .coordinate import (
     torsion_angles_to_frames,
     frames_and_literature_positions_to_atom14_pos,
 )
-from utils import dict_multimap
+from .utils import dict_multimap
 
-from structure_module.primitive import LayerNorm
+from .primitive import LayerNorm
 
 
 class StructureModule(nn.Module):
