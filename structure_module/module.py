@@ -12,8 +12,13 @@ from .coordinate import (
     torsion_angles_to_frames,
     frames_and_literature_positions_to_atom14_pos,
 )
-from .utils import dict_multimap
-
+from .utils import dict_multimap, exists
+from .residue_constants import (
+    restype_rigid_group_default_frame,
+    restype_atom14_to_rigid_group,
+    restype_atom14_mask,
+    restype_atom14_rigid_group_positions,
+)
 from .primitive import LayerNorm
 
 
@@ -121,7 +126,12 @@ class StructureModule(nn.Module):
 
         outputs = []
         for iter in range(self.self.no_blocks):
-            s = self.IPA()
+            s = self.IPA(
+                s,
+                z,
+                rigids,
+                mask,
+            )
             s = self.ipa_layer_norm(
                 self.ipa_dropout(s)
             )  # Algorithm 20 Structure module line 7
@@ -129,7 +139,11 @@ class StructureModule(nn.Module):
             rigids = rigids.compose_q_update_vec(self.bb_update(s))
 
             # convert quaternion-format rigid to rotation matrix one.
-            backb_to_global = Rigid(Rotation)
+            # This step is unnecessary. only to hew as close as possible to AF2.
+            backb_to_global = Rigid(
+                Rotation(rigids.get_rots().get_rot_mats()),
+                trans=rigids.get_trans()
+            )
             backb_to_global = backb_to_global.scale_translation(self.trans_scale_factor)
 
             # we use two num to represent the 7 angles, i.e., spi, phi, omega, x1, x2, x3, x4
@@ -173,19 +187,79 @@ class StructureModule(nn.Module):
 
     def torsion_angles_to_frames(
         self,
+        backb_to_global,
+        angles,
+        aatypes,
     ):
-
-        self._init_residue_constants()
-        return torsion_angles_to_frames()
+        self._init_residue_constants(angles.dtype, angles.device)
+        return torsion_angles_to_frames(
+            backb_to_global, angles, aatypes, self.default_frames
+        )
 
     def frames_and_literature_positions_to_atom14_pos(
         self,
+        frames,
+        aatypes,
     ):
-        self._init_residue_constants()
-        return frames_and_literature_positions_to_atom14_pos()
+        self._init_residue_constants(aatypes.dtype, aatypes.device)
+        return frames_and_literature_positions_to_atom14_pos(
+            frames,
+            aatypes,
+            self.default_frames,
+            self.group_idx,
+            self.atom_mask,
+            self.lit_positions,
+        )
 
-    def _init_residue_constants(
-        self,
-    ):
-        """lazy init residue constants for atom coordinates prediction."""
-        ...
+    def _init_residue_constants(self, float_dtype, device):
+        """
+        lazy init residue constants for atom coordinates prediction.
+
+        21 types of amino acids (20 + 1 for unknown).
+        14 atoms in a residue, differs by amino acid type.
+        alphafol2 defines 8 frame groups.
+            - The backbone frame,
+            - 3 backbone torsion angle frame (phi, psi, omega),
+            - 4 side chain torsion angles frame(x1, x2, x3, x4).)
+
+        Specifically, the following constants would be intialized:
+            - default_frame_transformations [21, 8, 4, 4],
+            - restype_atom14_to_rigid_group, [21, 14],
+                                            a table tells an atom belongs to whcih rigid groups.
+                                            See Alphafold2 Supplement Table 2.
+            - atom_mask, [21, 14], a 0/1 table where 0 means the atom does not exist in the amino acid type,
+                                    and thus should be masked.
+            - atom_local_positions, the local positions of the 14 atoms in the residue,
+                                    the local coordinates are defined in the aforementioned 8 frames.
+
+        """
+        if not exists(self.default_frames):
+            self.default_frames = torch.tensor(
+                restype_rigid_group_default_frame,
+                dtype=float_dtype,
+                device=device,
+                requires_grad=False,
+            )
+        if not exists(self.group_idx):
+            self.group_idx = torch.tensor(
+                restype_atom14_to_rigid_group,
+                dtype=float_dtype,
+                device=device,
+                requires_grad=False,
+            )
+        if not exists(self.atom_mask):
+            self.atom_mask = torch.tensor(
+                restype_atom14_mask,
+                dtype=float_dtype,
+                device=device,
+                requires_grad=False,
+            )
+
+        if not exists(self.lit_positions):
+            self.lit_positions = torch.tensor(
+                restype_atom14_rigid_group_positions,
+                dtype=float_dtype,
+                device=device,
+                requires_grad=False,
+            )
+            restype_rigid_group_default_frame,
