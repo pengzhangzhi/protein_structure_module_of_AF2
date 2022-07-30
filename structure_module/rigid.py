@@ -114,6 +114,8 @@ def identity_rot_mats(
     device: Optional[torch.device] = None, 
     requires_grad: bool = True,
 ) -> torch.Tensor:
+    if not isinstance(batch_dims, tuple):
+        batch_dims = (batch_dims,)
     rots = torch.eye(
         3, dtype=dtype, device=device, requires_grad=requires_grad
     )
@@ -129,6 +131,8 @@ def identity_trans(
     device: Optional[torch.device] = None, 
     requires_grad: bool = True,
 ) -> torch.Tensor:
+    if not isinstance(batch_dims, tuple):
+        batch_dims = (batch_dims,)
     trans = torch.zeros(
         (*batch_dims, 3), 
         dtype=dtype, 
@@ -144,6 +148,8 @@ def identity_quats(
     device: Optional[torch.device] = None, 
     requires_grad: bool = True,
 ) -> torch.Tensor:
+    if not isinstance(batch_dims, tuple):
+        batch_dims = (batch_dims,)
     quat = torch.zeros(
         (*batch_dims, 4), 
         dtype=dtype, 
