@@ -9,6 +9,7 @@ from structure_module.layers import (
     AngleResNetBlock,
     Transition,
 )
+from structure_module.rigid import Rigid, Rotation
 
 
 class TestLayer(unittest.TestCase):
@@ -22,32 +23,44 @@ class TestLayer(unittest.TestCase):
         assert z.shape == (10, 200)
 
 
-# class TestIPA(unittest.TestCase):
-#     def test_ipa(self):
-#         ipa = InvariantPointAttention(
-#             c_s=100, c_z=200, c_hidden=300, no_heads=4, no_qk_points=5, no_v_points=6
-#         )
-#         s = torch.randn(10, 100)
-#         z = torch.randn(10, 200)
-#         s = ipa(
-#             s,
-#             z,
-#         )
-#         pass
-
-#     def test_equalvariance(self):
-#         ipa = InvariantPointAttention(
-#             c_s=100, c_z=200, c_hidden=300, no_heads=4, no_qk_points=5, no_v_points=6
-#         )
-#         s = torch.randn(10, 100)
-#         z = torch.randn(10, 200)
-#         # rotate the rigid body by 90 degrees the ouput should be the same.
-#         s = ipa(
-#             s,
-#             z,
-#         )
-#         pass
-
+class TestIPA(unittest.TestCase):
+    def test_ipa(self):
+        rigid = Rigid.identity(shape=(10,10))
+        ipa = InvariantPointAttention(
+            c_s=100, c_z=200, c_hidden=300, no_heads=4, no_qk_points=5, no_v_points=6
+        )
+        s = torch.randn(10,10, 100)
+        z = torch.randn(10, 10,10,200)
+        mask = torch.ones(10,10)
+        s = ipa(
+            s,
+            z,
+            rigid,
+            mask,
+        )
+        return s
+    
+    def test_equalvariance(self):
+        s1 = self.test_ipa()
+        
+        rigid = Rigid.from_3_points(
+            p_neg_x_axis=torch.randn(10,10,3),
+            origin=torch.randn(10,10,3),
+            p_xy_plane = torch.randn(10,10,3),
+        )
+        ipa = InvariantPointAttention(
+            c_s=100, c_z=200, c_hidden=300, no_heads=4, no_qk_points=5, no_v_points=6
+        )
+        s = torch.randn(10,10, 100)
+        z = torch.randn(10, 10,10,200)
+        mask = torch.ones(10,10)
+        s2 = ipa(
+            s,
+            z,
+            rigid,
+            mask,
+        )
+        assert torch.allclose(s1, s2), 'IPA should be equalvariance'
 
 class TestTransistionLayer(unittest.TestCase):
     def test_TransistionLayer(self):
