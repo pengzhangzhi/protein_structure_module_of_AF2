@@ -17,7 +17,7 @@ setup(
   author = 'Zhangzhi Peng',
   author_email = 'pengzhangzhics@gmail.com',
   long_description_content_type = 'text/markdown',
-  url = 'https://github.com/pengzhangzhi',
+  url = 'https://github.com/pengzhangzhi/protein_structure_module_of_AF2',
   keywords = [
     'artificial intelligence',
     'deep learning',
