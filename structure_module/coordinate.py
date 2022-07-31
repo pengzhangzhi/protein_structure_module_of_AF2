@@ -64,16 +64,17 @@ def torsion_angles_to_frames(
     x3_to_global = x2_to_global.compose(default_x3_to_x2.compose(x3_frame_to_x2))
     x4_to_global = x3_to_global.compose(default_x4_to_x3.compose(x4_frame_to_x3))
 
+    
     return Rigid.cat(
         [
-            backb_to_global,
-            omega_to_global,
-            phi_to_global,
-            psi_to_global,
-            x1_to_global,
-            x2_to_global,
-            x3_to_global,
-            x4_to_global,
+            backb_to_global.unsqueeze(-1),
+            omega_to_global.unsqueeze(-1),
+            phi_to_global.unsqueeze(-1),
+            psi_to_global.unsqueeze(-1),
+            x1_to_global.unsqueeze(-1),
+            x2_to_global.unsqueeze(-1),
+            x3_to_global.unsqueeze(-1),
+            x4_to_global.unsqueeze(-1),
         ],
         dim=-1,
     )
@@ -116,7 +117,7 @@ def frames_and_literature_positions_to_atom14_pos(
 
     # derive the transformation of the 14 atom
     num_frames = frames.shape[-1]
-    group_mask = torch.nn.functional.one_hot(group_mask, num_classes=num_frames)
+    group_mask = torch.nn.functional.one_hot(group_mask.long(), num_classes=num_frames)
     # [*, N, 14, 8]
     atom_to_global = frames[..., None, :] * group_mask
     # [*, N, 14]
@@ -139,11 +140,11 @@ def makeRotX(alpha: torch.Tensor) -> Rigid:
         [*,]. A transformation that rotates around the x-axis by alpha.
     """
     assert alpha.shape[-1] == 2, "alpha must be a 2D tensor"
-    assert torch.allclose(alpha ** (2.0).sum(-1), 1.0), "alpha must be a unit vector"
+    assert torch.allclose((alpha ** (2.0)).sum(-1), torch.tensor(1.0)), "alpha must be a unit vector"
 
-    a1 = alpha[:, 0]
-    a2 = alpha[:, 1]
-    batch_dim = alpha.shape[:-2]
+    a1 = alpha[..., 0]
+    a2 = alpha[..., 1]
+    batch_dim = alpha.shape[:-1]
     rot = torch.zeros((*batch_dim, 3, 3), dtype=alpha.dtype, device=a1.device)
     rot[..., 0, 0] = 1
     rot[..., 1, 1], rot[..., 2, 2] = a1, a1
