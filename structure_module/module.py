@@ -29,7 +29,7 @@ class StructureModule(nn.Module):
         c_z,  # channel dim of pair_rep
         c_ipa,  # hidden channel dim of ipa
         c_resnet,  # hidden channel dim of resnet
-        no_head_ipa,  # num of head in ipa
+        no_heads_ipa,  # num of head in ipa
         no_qk_points,  # num of qk points in ipa
         no_v_points,  # num of v points in ipa
         dropout_rate,
@@ -38,8 +38,8 @@ class StructureModule(nn.Module):
         no_resnet_blocks,  # num of blocks in resnet
         no_angles,  # num of angles to generate in resnet
         trans_scale_factor,  # scale of c_s hidden dim
-        epsilon,  # small number used in angle resnet normalization
-        inf,  # large num for mask
+        epsilon=1e-8,  # small number used in angle resnet normalization
+        inf=1e5,  # large num for mask
         *args,
         **kwargs,
     ) -> None:
@@ -57,7 +57,7 @@ class StructureModule(nn.Module):
         self.c_z = c_z
         self.c_ipa = c_ipa
         self.c_resnet = c_resnet
-        self.no_head_ipa = no_head_ipa
+        self.no_heads_ipa = no_heads_ipa
         self.no_qk_points = no_qk_points
         self.no_v_points = no_v_points
         self.dropout_rate = dropout_rate
@@ -77,18 +77,22 @@ class StructureModule(nn.Module):
             c_s,
             c_z,
             c_ipa,
-            no_head_ipa,
+            no_heads_ipa,
             no_qk_points,
             no_v_points,
             inf=inf,
             eps=epsilon,
         )  # Algorithm 22 Invariant point attention (IPA)
-        self.ipa_dropout = nn.Dropout(c_s)  # Algorithm 20 Structure module line 7
+        
+        self.ipa_dropout = nn.Dropout(dropout_rate)  # Algorithm 20 Structure module line 7
         self.ipa_layer_norm = LayerNorm(c_s)  # Algorithm 20 Structure module line 7
+        
         self.transition = Transition(
             c_s, no_transition_layers, dropout_rate
         )  # Algorithm 20 Structure module line 8 - 9
+        
         self.bb_update = BackboneUpdate(c_s)  # Algorithm 20 Structure module line 10
+        
         self.angle_resnet = AngleResNet(
             c_s,
             c_resnet,
@@ -96,6 +100,12 @@ class StructureModule(nn.Module):
             no_angles,
             eps=epsilon,
         )  # Algorithm 20 Structure module line 11
+        
+        # lazily intialized residue constants
+        self.default_frames = None
+        self.group_idx = None
+        self.atom_mask = None
+        self.lit_positions = None
 
     def forward(
         self,
@@ -120,12 +130,14 @@ class StructureModule(nn.Module):
                 frames,
 
         """
+        if not exists(mask):
+            mask = s.new_ones(s.shape[:-1])
         s_init, s, z = self.pre_module(s, z)  # Algorithm 20 Structure module line 1-3
 
-        rigids = Rigid.identity()
+        rigids = Rigid.identity(s.shape[:-1], s.dtype, s.device, self.training, fmt='quat')
 
         outputs = []
-        for iter in range(self.self.no_blocks):
+        for iter in range(self.no_blocks):
             s = self.IPA(
                 s,
                 z,
@@ -169,8 +181,8 @@ class StructureModule(nn.Module):
             scaled_rigids = rigids.scale_translation(self.trans_scale_factor)
 
             preds = {
-                "scaled_rigids": scaled_rigids,
-                "side_chain_frames": all_frames_to_global,
+                "scaled_rigids": scaled_rigids.to_tensor_7(),
+                "side_chain_frames": all_frames_to_global.to_tensor_4x4(),
                 "unormalized_angles": unnormalized_angles,
                 "angles": angles,
                 "positions": pred_xyz,
@@ -205,7 +217,6 @@ class StructureModule(nn.Module):
         return frames_and_literature_positions_to_atom14_pos(
             frames,
             aatypes,
-            self.default_frames,
             self.group_idx,
             self.atom_mask,
             self.lit_positions,
