@@ -27,7 +27,8 @@ pip install .
 
 
 # Usage
-
+start from 
+https://github.com/pengzhangzhi/protein_structure_module_of_AF2/blob/b48e737bc5837fc64421a8fe5be52d9df6fbaeeb/structure_module/module.py#L25
 
 # References
 
